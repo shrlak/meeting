@@ -1,0 +1,109 @@
+// Prisma schema for the meeting booking app.
+//
+// Default provider is SQLite so the app runs with zero external services.
+// To deploy on Postgres, change `provider` to "postgresql" and point
+// DATABASE_URL at your database — no model changes are required.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String @id @default(cuid())
+  email        String @unique
+  passwordHash String
+  name         String
+  username     String @unique
+  timezone     String @default("America/New_York")
+
+  // Public booking page / event settings
+  eventTitle       String @default("30 Minute Meeting")
+  eventDescription String @default("")
+  eventLocation    String @default("Google Meet")
+  durationMinutes  Int    @default(30)
+  bufferMinutes    Int    @default(0)
+  slotIntervalMins Int    @default(30)
+  minNoticeMinutes Int    @default(240)
+  maxDaysAhead     Int    @default(60)
+
+  // Google Calendar connection (optional)
+  googleEmail        String?
+  googleAccessToken  String?
+  googleRefreshToken String?
+  googleTokenExpiry  DateTime?
+  googleCalendarId   String?   @default("primary")
+
+  availability AvailabilityRule[]
+  overrides    DateOverride[]
+  bookings     Booking[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/// Recurring weekly availability, expressed in the host's timezone.
+/// `startMinute` / `endMinute` are minutes from midnight (e.g. 9:00 => 540).
+model AvailabilityRule {
+  id          String @id @default(cuid())
+  userId      String
+  weekday     Int // 0 = Sunday ... 6 = Saturday
+  startMinute Int
+  endMinute   Int
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, weekday])
+}
+
+/// Per-date exception that replaces the weekly rules for that calendar day.
+/// `blocked` = the whole day is unavailable. Otherwise `intervals` holds a
+/// JSON array of { start, end } minute pairs in the host's timezone.
+model DateOverride {
+  id        String  @id @default(cuid())
+  userId    String
+  date      String // YYYY-MM-DD in the host's timezone
+  blocked   Boolean @default(false)
+  intervals String  @default("[]")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@index([userId])
+}
+
+model Booking {
+  id     String @id @default(cuid())
+  userId String
+
+  guestName  String
+  guestEmail String
+  guestNotes String @default("")
+  guestTz    String @default("UTC")
+
+  startUtc DateTime
+  endUtc   DateTime
+
+  status      String  @default("CONFIRMED") // CONFIRMED | CANCELLED
+  /// Mirrors `startUtc` while the booking holds the slot, and is cleared on
+  /// cancellation. The unique index below makes double-booking impossible
+  /// while still allowing a cancelled slot to be re-booked.
+  activeSlot  String?
+  cancelToken String  @unique @default(cuid())
+
+  googleEventId String?
+  googleMeetUrl String?
+  calendarSync  String  @default("PENDING") // PENDING | SENT | SKIPPED | FAILED
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, activeSlot])
+  @@index([userId, startUtc])
+}
