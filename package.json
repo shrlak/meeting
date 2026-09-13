@@ -5,15 +5,15 @@
   "description": "Self-hosted meeting scheduling app: hosts publish a booking page, guests book, Google Calendar invites go out automatically.",
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate && next build",
+    "build": "node scripts/set-db-provider.mjs && prisma generate && next build",
     "start": "next start",
     "lint": "next lint",
     "test": "node --import tsx --test \"src/**/*.test.ts\"",
     "typecheck": "tsc --noEmit",
-    "db:push": "prisma db push",
-    "db:generate": "prisma generate",
+    "db:push": "node scripts/set-db-provider.mjs && prisma db push",
+    "db:generate": "node scripts/set-db-provider.mjs && prisma generate",
     "db:studio": "prisma studio",
-    "postinstall": "prisma generate"
+    "postinstall": "node scripts/set-db-provider.mjs && prisma generate"
   },
   "dependencies": {
     "@prisma/client": "^6.1.0",

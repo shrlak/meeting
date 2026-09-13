@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+
+    env:
+      # The build only needs a syntactically valid URL; no database is contacted.
+      DATABASE_URL: "file:./ci.db"
+      SESSION_SECRET: "ci-only-secret-not-used-to-sign-anything-real"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Production build
+        run: npm run build
+
+      - name: Schema is valid on Postgres too
+        env:
+          DATABASE_PROVIDER: postgresql
+          # prisma validate parses DATABASE_URL against the provider, so this
+          # has to be Postgres-shaped. Nothing connects to it.
+          DATABASE_URL: "postgresql://user:password@localhost:5432/meeting"
+        run: node scripts/set-db-provider.mjs && npx prisma validate
