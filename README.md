@@ -48,6 +48,7 @@ window to see what guests see.
 | Variable | Required | Purpose |
 | --- | --- | --- |
 | `DATABASE_URL` | yes | `file:./dev.db` for SQLite, or a Postgres connection string |
+| `DATABASE_PROVIDER` | no | `sqlite` (default) or `postgresql`. Points the Prisma schema at the right engine — see `scripts/set-db-provider.mjs` |
 | `APP_URL` | yes | Public base URL, no trailing slash. Used for booking links and the OAuth redirect |
 | `SESSION_SECRET` | yes in production | Signs the login cookie. `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` |
 | `GOOGLE_CLIENT_ID` | optional | Google OAuth client ID |
@@ -61,16 +62,12 @@ instead, and the dashboard shows the booking as "No calendar".
 
 ## Connecting Google Calendar
 
-1. In the [Google Cloud Console](https://console.cloud.google.com/), create (or pick) a project.
-2. **APIs & Services → Library →** enable the **Google Calendar API**.
-3. **APIs & Services → OAuth consent screen →** configure it. While the app is in *Testing*, add
-   every host's Google account under **Test users**.
-4. **APIs & Services → Credentials → Create credentials → OAuth client ID**
-   - Application type: **Web application**
-   - Authorised redirect URI: `{APP_URL}/api/google/callback`
-     (e.g. `http://localhost:3000/api/google/callback`)
-5. Copy the client ID and secret into `.env`, restart the server.
-6. In the dashboard, click **Connect Google Calendar** and grant access.
+Full walkthrough with screenshots-worth of detail: **[DEPLOY.md → step 3](DEPLOY.md#3-set-up-google-oauth-credentials)**. The short version:
+
+1. [Google Cloud Console](https://console.cloud.google.com/) → new project → enable the **Google Calendar API**.
+2. **OAuth consent screen** → External → add the `calendar.events`, `calendar.readonly` and `userinfo.email` scopes → add every hosting Google account as a **test user**.
+3. **Credentials → OAuth client ID → Web application** → authorised redirect URI `{APP_URL}/api/google/callback`.
+4. Put the client ID and secret in `.env`, restart, then click **Connect Google Calendar** in the dashboard.
 
 Once connected:
 
@@ -82,7 +79,9 @@ Once connected:
 - cancelling from the dashboard (or from the guest's confirmation link) deletes the event and
   notifies both sides.
 
-Tokens are refreshed automatically and the new ones are written back to the database.
+Tokens are refreshed automatically and the new ones are written back to the database. While the
+Google app is in *Testing* mode, refresh tokens expire after 7 days and hosts click **Reconnect** —
+[DEPLOY.md step 3d](DEPLOY.md#3d-publishing-status--read-this-one) explains the trade-off.
 
 ---
 
@@ -138,21 +137,11 @@ npm run db:studio   # browse the database
 
 ## Deploying
 
-This app needs a **Node.js server** — it signs in users, talks to the Google Calendar API, and
-writes to a database, none of which a static host can do. GitHub Pages will not run it. Vercel,
-Render, Railway, Fly.io, or any VPS will.
+**[DEPLOY.md](DEPLOY.md)** walks through Vercel + Postgres end to end, including the Google OAuth
+setup and a troubleshooting table. Render (with SQLite on a persistent disk) is covered too.
 
-On Vercel (or similar):
-
-1. Push this repository and import it.
-2. Set `DATABASE_URL`, `APP_URL`, `SESSION_SECRET`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`.
-3. Serverless hosts have an ephemeral filesystem, so use Postgres rather than SQLite: change
-   `provider = "sqlite"` to `provider = "postgresql"` in `prisma/schema.prisma` and point
-   `DATABASE_URL` at your database (Neon, Supabase, RDS — anything Postgres).
-4. Run `npx prisma db push` against the production database once.
-5. Add `{APP_URL}/api/google/callback` to the OAuth client's authorised redirect URIs.
-
-`{APP_URL}/<username>` is then the link each host shares.
+This app needs a Node.js server — it signs in users, talks to the Google Calendar API, and writes
+to a database, none of which a static host can do. **GitHub Pages will not run it.**
 
 ---
 
