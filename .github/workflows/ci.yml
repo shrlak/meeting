@@ -34,4 +34,9 @@ jobs:
         run: npm run build
 
       - name: Schema is valid on Postgres too
-        run: DATABASE_PROVIDER=postgresql node scripts/set-db-provider.mjs && npx prisma validate
+        env:
+          DATABASE_PROVIDER: postgresql
+          # prisma validate parses DATABASE_URL against the provider, so this
+          # has to be Postgres-shaped. Nothing connects to it.
+          DATABASE_URL: "postgresql://user:password@localhost:5432/meeting"
+        run: node scripts/set-db-provider.mjs && npx prisma validate
